@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Meagan vs. the Machines</title>
+<meta name="theme-color" content="#111827" />
+<style>
+  :root{
+    --bg:#0b1020; --fg:#f6f7fb; --muted:#b8c0d6; --acc:#01a982;
+    --warn:#ffb020; --danger:#ff4d4f; --good:#22c55e; --card:#141a32; --shadow:0 6px 18px rgba(0,0,0,.35);
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color: transparent;}
+  html, body {height:100%}
+  body{
+    margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial,sans-serif;
+    background: radial-gradient(1200px 800px at 50% 20%, #131b35, #0b1020);
+    color:var(--fg); overflow:hidden; touch-action:none;
+  }
+
+  /* HUD */
+  .hud{
+    position:fixed; top:env(safe-area-inset-top,0); left:0; right:0; z-index:1000;
+    display:flex; align-items:center; justify-content:space-between; gap:10px;
+    padding:10px 14px; background:linear-gradient(to bottom, rgba(0,0,0,.45), rgba(0,0,0,0));
+  }
+  .pill{
+    background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.15); border-radius:999px;
+    padding:6px 12px; font-weight:600; font-size:14px; display:flex; align-items:center; gap:8px; box-shadow:var(--shadow);
+  }
+  .hud button{ appearance:none; border:none; color:var(--fg); background:rgba(255,255,255,.08);
+    border:1px solid rgba(255,255,255,.15); border-radius:999px; padding:8px 12px; font-weight:600; box-shadow:var(--shadow); }
+
+  /* Stage */
+  #stage{ position:fixed; inset: calc(40px + env(safe-area-inset-top,0)) 0 calc(100px + env(safe-area-inset-bottom,0)) 0; overflow:hidden; }
+
+  /* Footer */
+  .footer{
+    position:fixed; left:0; right:0; bottom:env(safe-area-inset-bottom,0); z-index:1000;
+    display:grid; grid-template-columns:120px 1fr; gap:10px; padding:10px 14px;
+    background:linear-gradient(to top, rgba(0,0,0,.45), rgba(0,0,0,0));
+  }
+  .nuke{
+    appearance:none; border:none; color:#06161a; background:var(--acc);
+    border-radius:16px; padding:14px 12px; font-weight:900; font-size:16px; box-shadow:0 10px 24px rgba(1,169,130,.35);
+  }
+  .nuke:disabled{ filter:grayscale(.7) brightness(.7); opacity:.8 }
+  .meters{ display:flex; align-items:center; gap:10px }
+  .meter{ flex:1; height:18px; border-radius:999px; background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.15); overflow:hidden; position:relative; }
+  .meter .fill{ position:absolute; left:0; top:0; bottom:0; width:0%; background:linear-gradient(90deg, var(--good), var(--warn), var(--danger)); }
+  .meter .label{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:12px; color:var(--muted); }
+
+  /* Popups */
+  .popup{
+    position:absolute; width:min(86vw,380px); background:var(--card);
+    border:1px solid rgba(255,255,255,.14); border-radius:16px; padding:12px 12px 10px; box-shadow:var(--shadow);
+    user-select:none; transform:translate3d(0,0,0);
+  }
+  .title{ font-weight:800; font-size:15px; margin-bottom:6px }
+  .text{ font-size:14px; color:var(--muted); line-height:1.25 }
+  .actions{ display:flex; gap:8px; margin-top:10px }
+  .btn{ flex:1; text-align:center; padding:10px 8px; border-radius:12px; font-weight:700; font-size:14px; border:1px solid rgba(255,255,255,.12); }
+  .btn.primary{ background:#2a345f } .btn.ghost{ background:#1a213f; color:#cdd6ff }
+  .x-badge{ position:absolute; right:10px; top:10px; width:22px; height:22px; border-radius:999px; line-height:22px; text-align:center; font-weight:900; font-size:14px; background:#1b213f; color:#9db1ff; border:1px solid rgba(255,255,255,.14); }
+
+  .popup.dark .actions .btn{ background:#3b2557; color:#ffd6ff; border-color:#5e3b82 }
+  .popup.dark .x-badge{ transform:scale(.75); opacity:.5 }
+  .popup.toast{ width:min(70vw,320px) }
+
+  .popup.boss{ border-color:#ffd36b; box-shadow:0 0 0 2px rgba(255,211,107,.3), var(--shadow) }
+  .bossChain{ display:flex; gap:6px; flex-wrap:wrap; margin-top:8px }
+  .bossBubble{ font-size:13px; padding:6px 8px; border-radius:10px; background:#2b2244; color:#ffe1a1; border:1px solid rgba(255,211,107,.35) }
+
+  /* Screens */
+  .screen{
+    position:fixed; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:18px;
+    background: radial-gradient(1200px 800px at 50% 20%, rgba(19,27,53,.92), rgba(11,16,32,.96));
+    padding:18px; z-index:2000; text-align:center;
+  }
+  .screen h1{ margin:0; font-size:28px }
+  .screen p{ margin:0; color:var(--muted) }
+  .big{ font-size:44px; font-weight:900; letter-spacing:.5px; margin-top:6px }
+  .row{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; justify-content:center }
+  .primary{ appearance:none; border:none; color:#06161a; background:var(--acc); border-radius:16px; padding:14px 18px; font-weight:900; font-size:16px; box-shadow:0 10px 24px rgba(1,169,130,.35); }
+  .ghost{ appearance:none; border:1px solid rgba(255,255,255,.18); color:var(--fg); background:transparent; border-radius:16px; padding:14px 18px; font-weight:800; font-size:16px; }
+
+  .particle{ position:absolute; width:6px; height:6px; border-radius:999px; background:linear-gradient(90deg, #82ffe0, #19d1a9); box-shadow:0 0 12px rgba(130,255,224,.9); }
+</style>
+</head>
+<body>
+
+  <!-- HUD -->
+  <div class="hud">
+    <div class="pill" id="scorePill">Score: <span id="score">0</span></div>
+    <div class="pill">Combo: <span id="combo">0</span></div>
+    <div class="pill">⏱ <span id="timer">60</span>s</div>
+    <button class="pause" id="pauseBtn">☕️ Pause</button>
+  </div>
+
+  <!-- Stage -->
+  <div id="stage" aria-live="polite"></div>
+
+  <!-- Footer -->
+  <div class="footer">
+    <button class="nuke" id="nukeBtn">Analog Mode ⚡</button>
+    <div class="meters">
+      <div class="meter" aria-label="Clutter meter">
+        <div class="fill" id="clutterFill"></div>
+        <div class="label">Screen Clutter</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Start Screen -->
+  <section class="screen" id="startScreen">
+    <h1>Meagan vs. the Machines</h1>
+    <p>Tap to reject, <b>swipe down</b> to dismiss. Don’t let the screen fill with “helpfulness.”</p>
+    <div class="row">
+      <button class="primary" id="startBtn">Start Round</button>
+      <button class="ghost" id="howBtn">How to Play</button>
+    </div>
+    <p style="margin-top:10px">Best: <b id="bestScore">0</b></p>
+  </section>
+
+  <!-- Pause Screen -->
+  <section class="screen" id="pauseScreen" style="display:none">
+    <h1>Paused ☕️</h1>
+    <p>Breathe. Touch grass. Then continue rejecting pop-ups.</p>
+    <div class="row">
+      <button class="primary" id="resumeBtn">Resume</button>
+      <button class="ghost" id="restartFromPause">Restart</button>
+    </div>
+  </section>
+
+  <!-- Help Screen -->
+  <section class="screen" id="helpScreen" style="display:none">
+    <h1>How to Play</h1>
+    <p>• <b>Tap</b> pop-ups to reject (<i>Helpful Hint / ToS</i>)</p>
+    <p>• <b>Swipe down</b> to dismiss <i>Dark Pattern</i> pop-ups</p>
+    <p>• Don’t let <b>Clutter</b> hit 100</p>
+    <p>• Use <b>Analog Mode</b> (⚡) to clear the screen (1× per round)</p>
+    <div class="row" style="margin-top:12px">
+      <button class="primary" id="helpBack">Got it</button>
+    </div>
+  </section>
+
+  <!-- Results Screen -->
+  <section class="screen" id="resultScreen" style="display:none">
+    <div class="big" id="resultTitle">Round Over</div>
+    <p>Score: <b id="finalScore">0</b> • Best: <b id="finalBest">0</b></p>
+    <p id="quip" style="max-width:28ch; margin-top:8px"></p>
+    <div class="row" style="margin-top:12px">
+      <button class="primary" id="playAgain">Play Again</button>
+      <button class="ghost" id="toMenu">Menu</button>
+    </div>
+  </section>
+
+<script>
+(function(){
+  const stage = document.getElementById('stage');
+  const scoreEl = document.getElementById('score');
+  const comboEl = document.getElementById('combo');
+  const timerEl = document.getElementById('timer');
+  const clutterFill = document.getElementById('clutterFill');
+  const nukeBtn = document.getElementById('nukeBtn');
+
+  const startScreen = document.getElementById('startScreen');
+  const resultScreen = document.getElementById('resultScreen');
+  const pauseScreen = document.getElementById('pauseScreen');
+  const helpScreen  = document.getElementById('helpScreen');
+
+  const startBtn = document.getElementById('startBtn');
+  const howBtn = document.getElementById('howBtn');
+  const helpBack = document.getElementById('helpBack');
+  const pauseBtn = document.getElementById('pauseBtn');
+  const resumeBtn = document.getElementById('resumeBtn');
+  const restartFromPause = document.getElementById('restartFromPause');
+  const playAgain = document.getElementById('playAgain');
+  const toMenu = document.getElementById('toMenu');
+
+  const bestScoreEl = document.getElementById('bestScore');
+  const finalScoreEl = document.getElementById('finalScore');
+  const finalBestEl = document.getElementById('finalBest');
+  const quipEl = document.getElementById('quip');
+
+  const STORAGE_KEYS = { best:'mvsm_highscore' };
+
+  let state = null;
+  let popupPool = [];
+  let spawnTimer = 0;
+  let rAF = null;
+
+  const DURATION = 60;      // seconds
+  const BOSS_TIME = 10;     // last 10s is boss
+  const START_SPAWN_MS = 900;
+  const MIN_SPAWN_MS = 480;
+
+  const QUIPS = [
+    "You kept the internet 1% more human.",
+    "Meagan nods, almost approvingly. Almost.",
+    "The toaster and fridge remain non-sentient. For now.",
+    "You rejected synergy and it felt great.",
+    "Tech support: 'Have you tried… going outside?'",
+  ];
+
+    const LINES_BASIC = [
+        "Would you like to try our new AI?",
+        "It's time to use ChatGPT. Trust us.",
+        "Upgrade your life with AI (terms may vary).",
+        "Our AI noticed your inefficiencies. Would you like them ranked?",
+        "Enable Smart Replies so you never have to think again?",
+        "Your calendar begs for AI structure. Shall we?",
+        "AI can rewrite this conversation to sound 40% smarter. Proceed?",
+        "Boost creativity with Predictive Inspiration™?",
+        "Auto-summarize your feelings using state-of-the-art vibes?",
+        "Free trial: AI that finishes your snacks—uh, sentences.",
+        "We generated your to-do list. #1: Enable more AI.",
+        "Quick question: permission to optimize your personality?"
+    ];
+
+    const LINES_TOS = [
+        "AI Privacy Update: we respect your data—our models adore it.",
+        "We trained a model on the Terms of Service so you don't have to (please still agree).",
+        "AI Safety Addendum: do not look directly at the algorithm.",
+        "Short Policy: 1) Use AI. 2) Keep using AI. 3) Eternal updates.",
+        "Your soul is safe. Your prompts? Public-ish.",
+        "Cookie Notice: now with Neural Sprinkles™."
+    ];
+
+    const LINES_DARK = [
+        "Enable AI / Enable More AI / Enable Forever",
+        "Yes, Use AI / Absolutely, Use AI / I Live For AI",
+        "Install Now / Install Quietly / Install Telepathically",
+        "Allow Training / Allow Personalization / Allow Destiny",
+        "Try ChatGPT / Try ChatGPT+ / Try ChatGPT++ (beta)",
+        "No Thanks* / *Actually Yes / Fine (uses AI)"
+    ];
+
+    const LINES_DL = [
+        "Downloading AI Assistant… optimizing your humanity…",
+        "Installing ChatGPT Boosters… reality may feel lighter.",
+        "Applying Auto-Reply Pack… responses become 12% smugger.",
+        "Training Mini-Model on your texts… almost empathetic!",
+        "Patching your brain firmware… please hold still.",
+        "Syncing prompts across devices… including your toaster."
+    ];
+
+    const BOSS_LINES = [
+        "It's time to use ChatGPT.",
+        "Small nudge: try our new AI—everyone is!",
+        "We drafted your apology email (again).",
+        "Pro tip: delegate your weekend to AI.",
+        "Just one click to optimize this entire vibe.",
+        "We noticed an un-AI'd task. Correcting…",
+        "Your LinkedIn post needs 3 more buzzwords. Generating.",
+        "Quick survey: how helpful was this helpfulness?",
+        "AI can calendarize your free will—enable?",
+        "Reminder: the future is AI. Press Accept."
+    ];
+
+  function setScreen(screen){
+    startScreen.style.display = (screen==='start') ? 'flex' : 'none';
+    resultScreen.style.display = (screen==='result') ? 'flex' : 'none';
+    pauseScreen.style.display = (screen==='pause') ? 'flex' : 'none';
+    helpScreen.style.display  = (screen==='help')  ? 'flex' : 'none';
+  }
+
+  function newGame(){
+    state = {
+      running:true, timeLeft:DURATION, score:0, combo:0, clutter:0, nukes:1,
+      spawnMs:START_SPAWN_MS, lastTs:performance.now(), boss:false,
+    };
+    scoreEl.textContent = 0; comboEl.textContent = 0; timerEl.textContent = DURATION;
+    clutterFill.style.width = '0%';
+    nukeBtn.disabled = false;
+    clearStage();
+    spawnTimer = 0;
+    cancelAnimationFrame(rAF);
+    rAF = requestAnimationFrame(tick);
+  }
+
+  function clearStage(){
+    for(const el of Array.from(stage.children)) el.remove();
+    popupPool.length = 0;
+  }
+
+  function safeSetBest(score){
+    const best = +localStorage.getItem(STORAGE_KEYS.best) || 0;
+    if(score>best) localStorage.setItem(STORAGE_KEYS.best, String(score));
+    return Math.max(score, best);
+  }
+
+  function showResults(reason='Round Over'){
+    setScreen('result');
+    document.getElementById('resultTitle').textContent = reason;
+    finalScoreEl.textContent = state.score|0;
+    finalBestEl.textContent = safeSetBest(state.score|0);
+    quipEl.textContent = QUIPS[(Math.random()*QUIPS.length)|0];
+  }
+
+  function gameOver(reason){
+    endGame(false);
+    showResults(reason);
+  }
+
+  function endGame(win=false){
+    if(!state) return;
+    state.running = false;
+    cancelAnimationFrame(rAF);
+    setTimeout(clearStage, 0);
+  }
+
+  function tick(ts){
+    if(!state.running) return;
+    const dt = Math.min(100, ts - state.lastTs);
+    state.lastTs = ts;
+
+    // Time
+    state.timeLeft -= dt/1000;
+    if(state.timeLeft <= 0){
+      if(!state.boss){
+        state.boss = true;
+        state.timeLeft = BOSS_TIME;
+        spawnBossBurst();
+      }else{
+        endGame(true);
+        showResults('Boss Cleared!');
+        return;
+      }
+    }
+    timerEl.textContent = Math.max(0, Math.ceil(state.timeLeft));
+
+    // Difficulty
+    const totalNonBoss = DURATION - BOSS_TIME;
+    const elapsed = Math.max(0, totalNonBoss - Math.max(0,state.timeLeft - (state.boss?0:BOSS_TIME)));
+    const progress = Math.min(1, elapsed / totalNonBoss);
+    state.spawnMs = START_SPAWN_MS + (MIN_SPAWN_MS - START_SPAWN_MS) * progress;
+
+    // Spawn
+    spawnTimer += dt;
+    const shouldSpawn = state.boss ? (spawnTimer >= 450) : (spawnTimer >= state.spawnMs);
+    if(shouldSpawn){
+      spawnTimer = 0;
+      state.boss ? spawnBossBubble() : spawnPopupWeighted();
+    }
+
+    // Download timers
+    for(const p of popupPool){
+      if(!p.el.isConnected) continue;
+      if(p.type==='dl'){
+        p.dlTime += dt;
+        if(p.dlTime >= p.dlLimit){
+          registerMiss(p, 'Download finished');
+        }
+      }
+    }
+
+    rAF = requestAnimationFrame(tick);
+  }
+
+  function randBetween(min,max){ return Math.random()*(max-min)+min }
+  function choice(arr){ return arr[(Math.random()*arr.length)|0] }
+
+  function spawnPopupWeighted(){
+    const roll = Math.random();
+    let type = 'basic';
+    if(roll>0.75) type='tos';
+    if(roll>0.55) type='dl';
+    if(roll>0.35) type='dark';
+    createPopup(type);
+  }
+
+  function spawnBossBurst(){ for(let i=0;i<4;i++) spawnBossBubble(); }
+
+  function randomPos(elW, elH){
+    const rect = stage.getBoundingClientRect();
+    const x = randBetween(10, rect.width  - elW - 10);
+    const y = randBetween(6,  rect.height - elH - 6);
+    return {x,y};
+  }
+
+  function createPopup(type='basic'){
+    const el = document.createElement('div');
+    el.className = 'popup';
+    const popup = { el, type, hits:1, dlTime:0, dlLimit: randBetween(2800, 4500), req:'tap' };
+    let title = "Just trying to help!";
+    let text  = choice(LINES_BASIC);
+
+    if(type==='tos'){ title="Terms of Service"; text=choice(LINES_TOS); popup.hits=2; popup.req='tap'; }
+    if(type==='dark'){ el.classList.add('dark'); title="Important Decision"; text=choice(LINES_DARK); popup.req='swipe'; }
+    if(type==='dl'){ title="Downloading…"; text=choice(LINES_DL); popup.req='timed'; }
+
+    el.innerHTML = `
+      <div class="x-badge">×</div>
+      <div class="title">${title}</div>
+      <div class="text">${text}</div>
+      <div class="actions">
+        <div class="btn ghost">Not now</div>
+        <div class="btn primary">Allow</div>
+      </div>
+    `;
+    stage.appendChild(el);
+    const rect = el.getBoundingClientRect();
+    const pos = randomPos(rect.width, rect.height);
+    el.style.left = pos.x+'px'; el.style.top = pos.y+'px';
+
+    wireGesture(el, popup);
+    popupPool.push(popup);
+    return popup;
+  }
+
+  function spawnBossBubble(){
+    const el = document.createElement('div');
+    el.className = 'popup boss';
+    const count = 2 + ((Math.random()*3)|0);
+    let bubbles = '';
+    for(let i=0;i<count;i++) bubbles += `<div class="bossBubble">${choice(BOSS_LINES)}</div>`;
+    el.innerHTML = `
+      <div class="x-badge">×</div>
+      <div class="title">Polite Barrage</div>
+      <div class="text">Multi-hit to clear.</div>
+      <div class="bossChain">${bubbles}</div>
+      <div class="actions">
+        <div class="btn ghost">Later</div>
+        <div class="btn primary">Optimize Me</div>
+      </div>
+    `;
+    stage.appendChild(el);
+    const rect = el.getBoundingClientRect();
+    const pos = randomPos(rect.width, rect.height);
+    el.style.left = pos.x+'px'; el.style.top = pos.y+'px';
+
+    const popup = { el, type:'boss', hits:3, req:'tap' };
+    wireGesture(el, popup);
+    popupPool.push(popup);
+  }
+
+  function wireGesture(el, popup){
+    let startY=0, startX=0, moved=false, startTime=0, longPressTimer=null;
+
+    const onStart = (e)=>{
+      e.preventDefault();
+      const t = getTouch(e);
+      startY = t.clientY; startX = t.clientX; moved=false;
+      startTime = performance.now();
+      clearTimeout(longPressTimer);
+      longPressTimer = setTimeout(()=>{}, 450);
+    };
+    const onMove = (e)=>{
+      const t = getTouch(e); const dy = t.clientY - startY; const dx = t.clientX - startX;
+      if(Math.abs(dy)>8 || Math.abs(dx)>8) moved=true;
+      if(dy>12){
+        el.style.transform = `translateY(${Math.min(dy, 80)}px)`;
+        el.style.opacity = String(Math.max(.25, 1 - (dy/160)));
+      }
+    };
+    const onEnd = (e)=>{
+      clearTimeout(longPressTimer);
+      const t = getTouch(e);
+      const dy = t.clientY - startY;
+      const dx = t.clientX - startX;
+      const elapsed = performance.now() - startTime;
+
+      if(dy>60 && Math.abs(dy) > Math.abs(dx)){
+        resolveAction(popup, 'swipe');
+      }else{
+        if(!moved || elapsed<200) resolveAction(popup, 'tap');
+        else{
+          if(popup.req==='swipe'){ registerMiss(popup, 'Tapped dark pattern'); }
+          el.style.transform = ''; el.style.opacity = '';
+        }
+      }
+    };
+
+    el.addEventListener('touchstart', onStart, {passive:false});
+    el.addEventListener('touchmove', onMove, {passive:false});
+    el.addEventListener('touchend', onEnd, {passive:false});
+    el.addEventListener('mousedown', onStart);
+    el.addEventListener('mousemove', onMove);
+    el.addEventListener('mouseup', onEnd);
+  }
+
+  function getTouch(e){ return (e.changedTouches && e.changedTouches[0]) || e; }
+
+  function resolveAction(popup, action){
+    if(!popup.el.isConnected) return;
+
+    if(popup.req==='swipe' && action==='tap'){ registerMiss(popup, 'Dark pattern trick'); return; }
+
+    if(popup.type==='tos' && popup.req==='tap'){
+      popup.hits -= 1;
+      if(popup.hits>0){ flashPopup(popup.el,'✔'); addScore(8,true); return; }
+    }else if(popup.type==='boss'){
+      popup.hits -= 1;
+      if(popup.hits>0){ flashPopup(popup.el,'💥'); addScore(12,true); return; }
+    }
+
+    destroyPopup(popup, action);
+    addScore(action==='swipe'?15:10, action==='swipe');
+    if(state.combo>0) adjustClutter(-3);
+  }
+
+  function destroyPopup(popup, action){
+    if(!popup?.el?.isConnected) return;
+    popup.el.style.transition = 'transform .18s ease, opacity .18s ease';
+    popup.el.style.transform = (action==='swipe') ? 'translateY(120px) scale(.98)' : 'scale(.97)';
+    popup.el.style.opacity = '0';
+    setTimeout(()=> popup.el.remove(), 180);
+    popupPool = popupPool.filter(p=>p!==popup);
+  }
+
+  function registerMiss(popup){
+    adjustClutter(+12);
+    state.combo = 0; comboEl.textContent = '0';
+    stage.style.transition = 'transform .08s'; stage.style.transform = 'translateY(4px)'; setTimeout(()=> stage.style.transform='', 80);
+  }
+
+  function adjustClutter(delta){
+    state.clutter = Math.max(0, Math.min(100, state.clutter + delta));
+    clutterFill.style.width = state.clutter + '%';
+    if(state.clutter>=100) gameOver('Phone melted under helpfulness');
+  }
+
+  function addScore(pts, styleBonus=false){
+    state.score += pts + (styleBonus?5:0) + (state.combo*2);
+    state.combo += 1;
+    scoreEl.textContent = state.score|0;
+    comboEl.textContent = state.combo|0;
+    const pill = document.getElementById('scorePill');
+    pill.style.transform = 'scale(1.06)'; setTimeout(()=> pill.style.transform='', 90);
+  }
+
+  // Analog Mode
+  nukeBtn.addEventListener('click', ()=>{
+    if(!state?.running) return;
+    if(state.nukes<=0) return;
+    state.nukes--; if(state.nukes<=0) nukeBtn.disabled = true;
+    analogMode();
+  });
+
+  function analogMode(){
+    for(const p of popupPool.slice()){ if(p?.el?.isConnected) p.el.remove(); }
+    popupPool.length = 0;
+    spawnParticles(36);
+    adjustClutter(-35);
+  }
+
+  function spawnParticles(n=24){
+    const rect = stage.getBoundingClientRect();
+    for(let i=0;i<n;i++){
+      const pt = document.createElement('div');
+      pt.className='particle';
+      pt.style.left = (rect.width/2)+'px'; pt.style.top  = (rect.height/2)+'px';
+      stage.appendChild(pt);
+      const ang = Math.random()*Math.PI*2;
+      const speed = 80 + Math.random()*140;
+      const dx = Math.cos(ang)*speed; const dy = Math.sin(ang)*speed;
+      pt.animate([{transform:'translate(0,0)',opacity:1},{transform:`translate(${dx}px, ${dy}px)`,opacity:0}],
+                 {duration:520+Math.random()*300, easing:'cubic-bezier(.2,.8,.2,1)'}).onfinish = ()=> pt.remove();
+    }
+  }
+
+  // UI Buttons
+  document.getElementById('pauseBtn').addEventListener('click', ()=>{
+    if(!state?.running) return;
+    state.running=false; cancelAnimationFrame(rAF); setScreen('pause');
+  });
+  resumeBtn.addEventListener('click', ()=>{
+    if(!state) return; state.running=true; state.lastTs=performance.now(); setScreen(null); rAF=requestAnimationFrame(tick);
+  });
+  restartFromPause.addEventListener('click', ()=>{ setScreen(null); newGame(); });
+
+  startBtn.addEventListener('click', ()=>{ setScreen(null); newGame(); });
+  playAgain.addEventListener('click', ()=>{ setScreen(null); newGame(); });
+  toMenu.addEventListener('click', ()=>{ setScreen('start'); bestScoreEl.textContent = +localStorage.getItem(STORAGE_KEYS.best) || 0; });
+  howBtn.addEventListener('click', ()=> setScreen('help'));
+  helpBack.addEventListener('click', ()=> setScreen('start'));
+
+  function flashPopup(el, mark='✔'){
+    const badge = el.querySelector('.x-badge'); if(!badge) return;
+    const old = badge.textContent; badge.textContent = mark; setTimeout(()=> badge.textContent = old, 220);
+  }
+
+  // Init best score
+  bestScoreEl.textContent = +localStorage.getItem(STORAGE_KEYS.best) || 0;
+
+  // Keyboard helpers (dev)
+  window.addEventListener('keydown', (e)=>{
+    if(e.key===' '){ e.preventDefault(); nukeBtn.click(); }
+    if(e.key.toLowerCase()==='p'){ e.preventDefault(); document.getElementById('pauseBtn').click(); }
+  });
+
+})();
+</script>
+</body>
+</html>
